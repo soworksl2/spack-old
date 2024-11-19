@@ -1,3 +1,5 @@
+# Spack
+
 This tool is a Bash wrapper that simplifies the manipulation of compressed files of various formats in a unified way. The supported formats are:
 
 - `rar`
