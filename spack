@@ -1,0 +1,147 @@
+#!/bin/bash
+
+function print_usage {
+    echo "spack {OPERATION} [-o output_dest] [OPTIONS..]"
+}
+
+function print_help {
+    print_usage
+    echo
+    echo "GLOBAL OPTIONS:"
+    echo "    -h, --help"
+    echo "        shows this help message"
+    echo "    --version"
+    echo "        shows the version of this tool"
+
+    echo
+    echo "OPERATIONS:"
+    echo "    -c, --compress"
+    echo "        compress all the passed file into the file specified with the -o option"
+
+    echo
+    echo "OPTIONS:"
+    echo "    --format"
+    echo "        specifies the format of the compressed file, if is -c operation the format is for the output file, if -d then it will be the passed file"
+    echo "    -o, --output"
+    echo "        the output of the operation. if -c is the compressed file, if -d is the directory where to decompressed"
+}
+
+
+function ensure_tool {
+    local tool="$1"
+
+    if ! command -v "${tool}" &> /dev/null; then
+        echo "ERROR: the tool (${tool}) is necessary" >&2
+        exit 1
+    fi
+}
+
+
+function spack_compress {
+    local output="$1"
+    local format="$2"
+    shift 2
+    local files=("$@")
+
+    echo "output: ${output}"
+    echo "format: ${format}"
+    echo "files are: ${files[@]}"
+
+    
+}
+
+#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+
+plain_args=("$@")
+TEMP=$(getopt -o "hco:" -l "help,version,compress,format:,output:" -- "$@")
+
+if test "$?" -ne "0"; then
+    echo "error parsing arguments" >&2
+    exit 1
+fi
+
+eval set -- "$TEMP"
+unset TEMP
+
+
+#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# parsing arguments
+#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+SPACK_REPOSITORY="https://github.com/soworksl2/spack"
+SPACK_VERSION=0.0.1
+SPACK_OPERATION=
+
+SPACK_FORMAT=auto
+SPACK_OUTPUT=auto
+
+while true; do
+    case "$1" in
+        "-h"|"--help")
+            print_help
+            exit 0
+        ;;
+        "--version")
+            echo "spack version (${SPACK_VERSION})"
+            echo "github: ${SPACK_REPOSITORY}"
+            exit 0
+        ;;
+
+        #OPERATIONS
+        "-c"|"--compress")
+            if test -n "${SPACK_OPERATION}"; then
+                echo "ERROR: two or more operation was specified" >&2
+                exit 1
+            fi
+
+            SPACK_OPERATION="c"
+            shift
+        ;;
+
+        #OPTIONS
+        "-o"|"--output")
+            SPACK_OUTPUT="$2"
+            shift 2            
+        ;;
+        "--format")
+            SPACK_FORMAT="$2"
+            shift 2
+        ;;
+        "--")
+            shift
+            break
+        ;;
+        *)
+            echo "fuck!" >&2
+            exit 1
+        ;;
+    esac
+done
+
+
+#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# runtime
+#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+if test -z "$SPACK_OPERATION"; then
+    echo "ERROR: no operation specified" >&2
+    exit 1
+fi
+
+if test "${SPACK_FORMAT}" = "auto"; then
+    echo "ERROR: format auto detection is not implemented yet! Sorry baby" >&2
+    exit 1
+fi
+
+case "${SPACK_OPERATION}" in
+    "c")
+        spack_compress "${SPACK_OUTPUT}" "${SPACK_FORMAT}" "$@"
+    ;;
+    *)
+        echo "ERROR: operation is invalid" >&2
+        exit 1
+    ;;
+esac
+
+#TODO: --format should be optional no mandatory, so you have to create an algorithm to detec the format automatically
