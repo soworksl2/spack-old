@@ -142,10 +142,10 @@ function get_formats_individually {
         local ext2=
         local ext3=
 
-        if test ${i} -gt 2; then
+        if test ${i} -gt 1; then
             ext2="${fmt_parts[i-1]}"
         fi
-        if test ${i} -gt 3; then
+        if test ${i} -gt 2; then
             ext3="${fmt_parts[i-2]}"
         fi
 
