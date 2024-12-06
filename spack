@@ -260,13 +260,11 @@ if test -z "$SPACK_OPERATION"; then
     exit 1
 fi
 
-if test "${SPACK_FORMAT}" = "auto"; then
-    echo "ERROR: format auto detection is not implemented yet! Sorry baby" >&2
-    exit 1
-fi
-
 case "${SPACK_OPERATION}" in
     "c")
+        if test "${SPACK_FORMAT}" = "auto"; then
+            SPACK_FORMAT="dumb_file.tar.gz"
+        fi
         spack_compress "${SPACK_OUTPUT}" "${SPACK_FORMAT}" "$@"
     ;;
     *)
