@@ -37,17 +37,148 @@ function ensure_tool {
 }
 
 
+function is_compression_part {
+    local part="$1"
+    local -a compression_extensions=(
+        gzip gz tgz
+        xz txz
+        bzip2 bz2 bz tbz2 tbz
+        zstd zst tzstd tzst
+        #TODO: these should be handled in is_encription_part because these tools support encription
+        #but encription is not implemented yet so they are handled here
+        7z rar zip
+    )
+
+    for comp_ext in "${compression_extensions[@]}"; do
+        if test "${comp_ext}" = "${part}"; then
+            return 0
+        fi
+    done
+    return 1
+}
+
+function is_archiver_part {
+    local part="$1"
+
+    if test "${part}" = "tar"; then
+        return 0
+    fi
+    return 1
+}
+
+function get_archiver_format {
+    local part="$1"
+    local -n gaf__archiver_fmt_ref="$2"
+
+    if test "${part}" = "tar"; then
+        gaf__archiver_fmt_ref="tar"
+    fi
+}
+
+function get_compression_format {
+    local part2="$1"
+    local part="$2"
+    local -n gcf__archiver_fmt_ref="$3"
+    local -n gcf__compression_fmt_ref="$4"
+
+    local implicit_archiver=
+
+    case "${part}" in
+        gzip|gz|tgz)
+            gcf__compression_fmt_ref="gzip"
+            if test "${part}" = "tgz"; then
+                implicit_archiver="tar"
+            fi
+        ;;
+        xz|txz)
+            gcf__compression_fmt_ref="xz"
+            if test "${part}" = "txz"; then
+                implicit_archiver="tar"
+            fi
+        ;; 
+        bz2|bz|tbz2|tbz)
+            gcf__compression_fmt_ref="bzip2"
+            if test "${part:0:1}" = "t"; then
+                implicit_archiver="tar"
+            fi
+        ;;
+        zstd|zst|tzstd|tzst)
+            gcf__compression_fmt_ref="zstd"
+            if test "${part:0:1}" = "t"; then
+                implicit_archiver="tar"
+            fi
+        ;;
+        7z)
+            gcf__compression_fmt_ref="7z"
+            implicit_archiver="7z"
+        ;;
+        rar)
+            gcf__compression_fmt_ref="rar"
+            implicit_archiver="rar"
+        ;;
+        zip)
+            gcf__compression_fmt_ref="zip"
+            implicit_archiver="zip"
+        ;;
+    esac
+
+    if test -z "${implicit_archiver}"; then
+        get_archiver_format "${part2}" gcf__archiver_fmt_ref
+    else
+        gcf__archiver_fmt_ref="${implicit_archiver}"
+    fi
+}
+
+function get_formats_individually {
+    local format="$1"
+    local -n archiver_fmt_ref="$2"
+    local -n compression_fmt_ref="$3"
+
+    local -a fmt_parts
+
+    IFS='.' read -ra fmt_parts <<< "${format}"
+    for (( i=${#fmt_parts[@]}-1 ; i>=1 ; i-- )) ; do
+        local ext="${fmt_parts[i]}"
+        local ext2=
+        local ext3=
+
+        if test ${i} -gt 2; then
+            ext2="${fmt_parts[i-1]}"
+        fi
+        if test ${i} -gt 3; then
+            ext3="${fmt_parts[i-2]}"
+        fi
+
+        if is_compression_part "${ext}"; then
+            local pre_ext1=
+            get_compression_format "${ext2}" "${ext}" archiver_fmt_ref compression_fmt_ref
+            return
+        elif is_archiver_part "${ext}"; then
+            get_archiver_format "${ext}" archiver_fmt_ref
+            return
+        fi
+    done
+    #if nothing is encounter set all as none
+    archiver_fmt_ref="none"
+    compression_fmt_ref="none"
+}
+
 function spack_compress {
     local output="$1"
     local format="$2"
     shift 2
     local files=("$@")
-
-    echo "output: ${output}"
-    echo "format: ${format}"
-    echo "files are: ${files[@]}"
-
     
+    local archiver_fmt
+    local compression_fmt
+
+    get_formats_individually ${format} archiver_fmt compression_fmt
+
+    echo "archiver_fmt: ${archiver_fmt}"
+    echo "compression_fmt: ${compression_fmt}"
+
+    local archiver_cmd=
+    local compression_cmd=
 }
 
 #-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
