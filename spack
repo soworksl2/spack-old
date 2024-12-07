@@ -236,7 +236,7 @@ while true; do
             shift 2            
         ;;
         "--format")
-            SPACK_FORMAT="$2"
+            SPACK_FORMAT="dumb_file.$2"
             shift 2
         ;;
         "--")
