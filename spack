@@ -133,6 +133,9 @@ function get_formats_individually {
     local format="$1"
     local -n archiver_fmt_ref="$2"
     local -n compression_fmt_ref="$3"
+    #if nothing is encounter set all as none by default
+    archiver_fmt_ref="none"
+    compression_fmt_ref="none"
 
     local -a fmt_parts
 
@@ -158,9 +161,6 @@ function get_formats_individually {
             return
         fi
     done
-    #if nothing is encounter set all as none
-    archiver_fmt_ref="none"
-    compression_fmt_ref="none"
 }
 
 function spack_compress {
