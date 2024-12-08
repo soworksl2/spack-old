@@ -153,7 +153,6 @@ function get_formats_individually {
         fi
 
         if is_compression_part "${ext}"; then
-            local pre_ext1=
             get_compression_format "${ext2}" "${ext}" archiver_fmt_ref compression_fmt_ref
             return
         elif is_archiver_part "${ext}"; then
