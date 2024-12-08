@@ -236,7 +236,7 @@ while true; do
             shift 2            
         ;;
         "--format")
-            SPACK_FORMAT="dumb_file.$2"
+            SPACK_FORMAT="$2"
             shift 2
         ;;
         "--")
@@ -264,6 +264,8 @@ case "${SPACK_OPERATION}" in
     "c")
         if test "${SPACK_FORMAT}" = "auto"; then
             SPACK_FORMAT="dumb_file.tar.gz"
+        else
+            SPACK_FORMAT="dumb_file.${SPACK_FORMAT}"
         fi
         spack_compress "${SPACK_OUTPUT}" "${SPACK_FORMAT}" "$@"
     ;;
