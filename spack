@@ -274,5 +274,3 @@ case "${SPACK_OPERATION}" in
         exit 1
     ;;
 esac
-
-#TODO: --format should be optional no mandatory, so you have to create an algorithm to detec the format automatically
