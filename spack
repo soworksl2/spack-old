@@ -36,34 +36,63 @@ function ensure_tool {
     fi
 }
 
+function process_special_data {
+    local special="$1"
+    local -n psd__implicit_archiver_ref="$2"
 
-function is_compression_part {
-    local part="$1"
-    local -a compression_extensions=(
-        gzip gz tgz
-        xz txz
-        bzip2 bz2 bz tbz2 tbz
-        zstd zst tzstd tzst
-        #TODO: these should be handled in is_encription_part because these tools support encription
-        #but encription is not implemented yet so they are handled here
-        7z rar zip
-    )
+    local meta="${special:0:1}"
+    local key="${special:1}"
 
-    for comp_ext in "${compression_extensions[@]}"; do
-        if test "${comp_ext}" = "${part}"; then
-            return 0
-        fi
-    done
-    return 1
+    case "${meta}" in
+        a)
+            psd__implicit_archiver_ref="${key}"
+            ;;
+        A)
+            psd__implicit_archiver_ref="${key}"
+            ;;
+        *)
+            echo "ERROR: ':${meta}${key}:' is not a valid meta ext" >&2
+            exit 1
+    esac
 }
 
-function is_archiver_part {
-    local part="$1"
+function extract_special_data_from_ext {
+    local -n esdfe__ext_ref="$1"
+    local -n esdfe__special_data_ref="$2"
+    local ext_data="$3"
 
-    if test "${part}" = "tar"; then
-        return 0
+    ext_data="${ext_data:1}" #remove prefix colon (:)
+    local -a components
+    IFS=':' read -ra components <<< "${ext_data}"
+    esdfe__special_data_ref=("${components[@]::${#components[@]} - 1}")
+    esdfe__ext_ref="${components[-1]}"
+}
+
+function get_ext_data {
+    local ext_data="$1"
+    local -n ext_ref="$2"
+    local -n implicit_archiver_ref="$3"
+
+    if ! test "${ext_data:0:1}" = ":"; then
+        ext_ref="${ext_data}"
+        return
     fi
-    return 1
+
+    local -a special_data
+    extract_special_data_from_ext ext_ref special_data "${ext_data}"
+    for special in "${special_data[@]}"; do
+        process_special_data "${special}" implicit_archiver_ref
+    done
+}
+
+function get_tool_exts {
+    local tool_key="$1"
+    local -n tools_arr_ref="$2"
+    local -n tool_ext_ref="$3"
+
+    local -a exts
+    IFS=' ' read -ra exts <<< "${tools_arr_ref[${tool_key}]}"
+    tool_ext_ref=("${exts[@]:2}")
 }
 
 function get_archiver_format {
@@ -81,52 +110,43 @@ function get_compression_format {
     local -n gcf__archiver_fmt_ref="$3"
     local -n gcf__compression_fmt_ref="$4"
 
-    local implicit_archiver=
+    for compression_tool_key in "${!COMPRESSION_TOOLS[@]}"; do
+        local -a tool_exts
+        get_tool_exts "${compression_tool_key}" COMPRESSION_TOOLS tool_exts
+        for ext_data in "${tool_exts[@]}"; do
+            local ext=
+            local implicit_archiver=
+            get_ext_data "${ext_data}" ext implicit_archiver
+            if test "${ext}" = "${part}"; then
+                gcf__compression_fmt_ref="${compression_tool_key}"
+                if test -n "${implicit_archiver}"; then
+                    gcf__archiver_fmt_ref="${implicit_archiver}"
+                else
+                    get_archiver_format "${part2}" gcf__archiver_fmt_ref
+                fi
+                return 0
+            fi
+        done
+    done
 
-    case "${part}" in
-        gzip|gz|tgz)
-            gcf__compression_fmt_ref="gzip"
-            if test "${part}" = "tgz"; then
-                implicit_archiver="tar"
-            fi
-        ;;
-        xz|txz)
-            gcf__compression_fmt_ref="xz"
-            if test "${part}" = "txz"; then
-                implicit_archiver="tar"
-            fi
-        ;; 
-        bz2|bz|tbz2|tbz)
-            gcf__compression_fmt_ref="bzip2"
-            if test "${part:0:1}" = "t"; then
-                implicit_archiver="tar"
-            fi
-        ;;
-        zstd|zst|tzstd|tzst)
-            gcf__compression_fmt_ref="zstd"
-            if test "${part:0:1}" = "t"; then
-                implicit_archiver="tar"
-            fi
-        ;;
-        7z)
-            gcf__compression_fmt_ref="7z"
-            implicit_archiver="7z"
-        ;;
-        rar)
-            gcf__compression_fmt_ref="rar"
-            implicit_archiver="rar"
-        ;;
-        zip)
-            gcf__compression_fmt_ref="zip"
-            implicit_archiver="zip"
-        ;;
-    esac
+    return 1
+}
 
-    if test -z "${implicit_archiver}"; then
-        get_archiver_format "${part2}" gcf__archiver_fmt_ref
-    else
-        gcf__archiver_fmt_ref="${implicit_archiver}"
-    fi
+function get_archiver_part {
+    local part="$1"
+    local -n gap__archiver_fmt_ref="$2"
+
+    for archiver_tool_key in "${!ARCHIVER_TOOLS[@]}"; do
+        local -a tool_exts
+        get_tool_exts "${archiver_tool_key}" ARCHIVER_TOOLS tool_exts
+        for ext in "${tool_exts}"; do
+            if test "${part}" = "${ext}"; then
+                gap__archiver_fmt_ref="${archiver_tool_key}"
+                return 0
+            fi
+        done
+    done
+    return 1
 }
 
 function get_formats_individually {
@@ -152,13 +172,19 @@ function get_formats_individually {
             ext3="${fmt_parts[i-2]}"
         fi
 
-        if is_compression_part "${ext}"; then
-            get_compression_format "${ext2}" "${ext}" archiver_fmt_ref compression_fmt_ref
+        if get_compression_format "${ext2}" "${ext}" archiver_fmt_ref compression_fmt_ref; then
             return
-        elif is_archiver_part "${ext}"; then
-            get_archiver_format "${ext}" archiver_fmt_ref
+        else
+            get_archiver_part "${ext}" archiver_fmt_ref
             return
         fi
+        #if is_compression_part "${ext}"; then
+        #    get_compression_format "${ext2}" "${ext}" archiver_fmt_ref compression_fmt_ref
+        #    return
+        #elif is_archiver_part "${ext}"; then
+        #    get_archiver_format "${ext}" archiver_fmt_ref
+        #    return
+        #fi
     done
 }
 
@@ -179,6 +205,19 @@ function spack_compress {
     local archiver_cmd=
     local compression_cmd=
 }
+
+
+declare -A ARCHIVER_TOOLS
+ARCHIVER_TOOLS[tar]="tar tar tar"
+
+declare -A COMPRESSION_TOOLS
+COMPRESSION_TOOLS[gzip]="gzip gzip gzip gz :atar:tgz"
+COMPRESSION_TOOLS[xz]="xz xz xz :atar:txz"
+COMPRESSION_TOOLS[bzip2]="bzip2 bzip2 bzip2 bzip bz2 :atar:tbz2 :atar:tbzip :atar:tbzip2"
+COMPRESSION_TOOLS[zstd]="zstd zstd zstd zst :atar:tzstd :atar:tzst"
+COMPRESSION_TOOLS[rar]="rar unrar :Arar:rar"
+COMPRESSION_TOOLS[zip]="zip unzip :Azip:zip"
+COMPRESSION_TOOLS[7z]="7z 7z :A7z:7z"
 
 #-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
