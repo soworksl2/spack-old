@@ -20,10 +20,11 @@ function print_help {
 
     echo
     echo "OPTIONS:"
-    echo "    --format"
+    echo "    --format <FORMAT>"
     echo "        specifies the format of the compressed file, if is -c operation the format is for the output file, if -d then it will be the passed file"
-    echo "    -o, --output"
-    echo "        the output of the operation. if -c is the compressed file, if -d is the directory where to decompressed"
+    echo "    -o, --output <PATH>"
+    echo "        the output of the operation. if -c is the compressed file, if -d is the directory where to decompressed. when used with -c this option is mandatory for --decompress the default will be the '[pwd]/[file_name_without_extensions]/'"
+    echo
 }
 
 
