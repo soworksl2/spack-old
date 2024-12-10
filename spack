@@ -25,6 +25,10 @@ function print_help {
     echo "    -o, --output <PATH>"
     echo "        the output of the operation. if -c is the compressed file, if -d is the directory where to decompressed. when used with -c this option is mandatory for --decompress the default will be the '[pwd]/[file_name_without_extensions]/'"
     echo
+    echo "    --dry"
+    echo "        Executes all logic except for decompression and compression operations. When this option is used, the script will not modify any files on the disk. This is intended to be used in conjunction with the --informative option."
+    echo "    --informative"
+    echo "        Outputs detailed information about the current execution process."
 }
 
 
@@ -189,6 +193,23 @@ function get_formats_individually {
     done
 }
 
+function spack_compress_info {
+    local archiver_fmt="$1"
+    local compression_fmt="$2"
+
+    shift 2
+    local -a files=("$@")
+
+    echo "operation: compression (-c)"
+    echo "archiver_fmt: ${archiver_fmt}"
+    echo "compression_fmt: ${compression_fmt}"
+    echo
+    echo "Files to compress (${#files[@]}):"
+    for file in "${files[@]}"; do
+        echo "    ${file}"
+    done
+}
+
 function spack_compress {
     local output="$1"
     local format="$2"
@@ -200,11 +221,20 @@ function spack_compress {
 
     get_formats_individually ${format} archiver_fmt compression_fmt
 
-    echo "archiver_fmt: ${archiver_fmt}"
-    echo "compression_fmt: ${compression_fmt}"
-
     local archiver_cmd=
     local compression_cmd=
+
+    if test "${SPACK_INFORMATIVE}" = true; then
+        echo "--informative"
+        spack_compress_info "${archiver_fmt}" "${compression_fmt}" "${files[@]}"
+        echo "--end informative"
+    fi
+
+    if test "${SPACK_DRY}" = true; then
+        return
+    fi
+
+    #operations
 }
 
 
@@ -224,7 +254,7 @@ COMPRESSION_TOOLS[7z]="7z 7z :A7z:7z"
 
 
 plain_args=("$@")
-TEMP=$(getopt -o "hco:" -l "help,version,compress,format:,output:" -- "$@")
+TEMP=$(getopt -o "hco:" -l "help,version,compress,format:,output:,dry,informative" -- "$@")
 
 if test "$?" -ne "0"; then
     echo "error parsing arguments" >&2
@@ -245,6 +275,9 @@ SPACK_OPERATION=
 
 SPACK_FORMAT=auto
 SPACK_OUTPUT=auto
+
+SPACK_DRY=false
+SPACK_INFORMATIVE=false
 
 while true; do
     case "$1" in
@@ -277,6 +310,14 @@ while true; do
         "--format")
             SPACK_FORMAT="$2"
             shift 2
+        ;;
+        "--dry")
+            SPACK_DRY=true
+            shift
+        ;;
+        "--informative")
+            SPACK_INFORMATIVE=true
+            shift
         ;;
         "--")
             shift
