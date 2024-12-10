@@ -9,22 +9,26 @@ function print_help {
     echo
     echo "GLOBAL OPTIONS:"
     echo "    -h, --help"
-    echo "        shows this help message"
+    echo "        Displays this help message."
     echo "    --version"
-    echo "        shows the version of this tool"
+    echo "        Displays the version of this tool."
 
     echo
     echo "OPERATIONS:"
     echo "    -c, --compress"
-    echo "        compress all the passed file into the file specified with the -o option"
+    echo "        Compresses all specified files into the file defined with the -o option."
 
     echo
     echo "OPTIONS:"
     echo "    --format <FORMAT>"
-    echo "        specifies the format of the compressed file, if is -c operation the format is for the output file, if -d then it will be the passed file"
+    echo "        Specifies the format of the compressed file."
+    echo "        - For the -c (compress) operation: defines the format of the output file."
+    echo "        - For the -d (decompress) operation: defines the format of the input file."
     echo "    -o, --output <PATH>"
-    echo "        the output of the operation. if -c is the compressed file, if -d is the directory where to decompressed. when used with -c this option is mandatory for --decompress the default will be the '[pwd]/[file_name_without_extensions]/'"
-    echo
+    echo "        Specifies the output path for the operation."
+    echo "        - For the -c (compress) operation: required and specifies the output compressed file."
+    echo "        - For the -d (decompress) operation: specifies the directory where files will be decompressed."
+    echo "          Defaults to '[pwd]/[file_name_without_extensions]/' if not specified."
     echo "    --dry"
     echo "        Executes all logic except for decompression and compression operations. When this option is used, the script will not modify any files on the disk. This is intended to be used in conjunction with the --informative option."
     echo "    --informative"
