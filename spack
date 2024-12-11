@@ -252,6 +252,11 @@ function spack_compress {
         exit 1
     fi
 
+    if test "${#files[@]}" -eq "0"; then
+        echo "ERROR: no files was specified to compress" >&2
+        exit 1
+    fi
+
     local archiver_cmd=
     local compression_cmd=
 }
