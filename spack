@@ -205,6 +205,7 @@ function spack_compress_info {
     local -a files=("$@")
 
     echo "operation: compression (-c)"
+    echo "output file: ${SPACK_OUTPUT}"
     echo "archiver_fmt: ${archiver_fmt}"
     echo "compression_fmt: ${compression_fmt}"
     echo
@@ -346,8 +347,12 @@ fi
 
 case "${SPACK_OPERATION}" in
     "c")
+        if test "${SPACK_OUTPUT}" = "auto"; then
+            echo "ERROR: you need to specify the output for the compression file" >&2 
+            exit 1
+        fi
         if test "${SPACK_FORMAT}" = "auto"; then
-            SPACK_FORMAT="dumb_file.tar.gz"
+            SPACK_FORMAT="${SPACK_OUTPUT}"
         else
             SPACK_FORMAT="dumb_file.${SPACK_FORMAT}"
         fi
