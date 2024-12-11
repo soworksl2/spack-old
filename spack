@@ -208,6 +208,35 @@ function get_formats_individually {
     done
 }
 
+function get_archiver_cmd {
+    local archiver_fmt="$1"
+
+    case "${archiver_fmt}" in
+        "tar")
+            ensure_tool tar
+            echo "tar_cmd"
+        ;;
+        "none")
+            echo "archiver_none_cmd"
+        ;;
+        *)
+            echo "ERROR: '${archiver_fmt}' is an invalid archiver format" >&2
+            exit 1
+        ;;
+    esac
+}
+
+function tar_cmd {
+    local -a files=("$@")
+
+    tar -cf "${SPACK_OUTPUT}" "${files[@]}"
+}
+
+function archiver_none_cmd {
+    local file="$1"
+    cp "${file}" "${SPACK_OUTPUT}"
+}
+
 function spack_compress_info {
     local archiver_fmt="$1"
     local compression_fmt="$2"
@@ -257,8 +286,24 @@ function spack_compress {
         exit 1
     fi
 
-    local archiver_cmd=
+    if test "${archiver_fmt}" = "none"; then
+        if test "${#files[@]}" -gt 1; then
+            echo "ERROR: Multiple files cannot be processed without an archiving tool." >&2
+            exit 1
+        fi
+
+        if test -d "${files[0]}"; then
+            echo "ERROR: '${files[0]}' is a directory and cannot be processed without an archiving tool" >&2
+            exit 1
+        fi
+    fi
+
+    local archiver_cmd=$(get_archiver_cmd "${archiver_fmt}")
     local compression_cmd=
+
+    echo "--[[STEP 1: ${archiver_fmt}]]--"
+    ${archiver_cmd} "${files[@]}"
+    echo "    completed..."
 }
 
 
