@@ -45,6 +45,17 @@ function ensure_tool {
     fi
 }
 
+function are_all_none {
+    local -a vars=("$@")
+
+    for var in "${vars[@]}"; do
+        if ! test "${var}" = "none"; then
+            return 1
+        fi
+    done
+    return 0
+}
+
 function process_special_data {
     local special="$1"
     local -n psd__implicit_archiver_ref="$2"
@@ -226,9 +237,6 @@ function spack_compress {
 
     get_formats_individually ${format} archiver_fmt compression_fmt
 
-    local archiver_cmd=
-    local compression_cmd=
-
     if test "${SPACK_INFORMATIVE}" = true; then
         echo "--informative"
         spack_compress_info "${archiver_fmt}" "${compression_fmt}" "${files[@]}"
@@ -239,7 +247,13 @@ function spack_compress {
         return
     fi
 
-    #operations
+    if are_all_none "${archiver_fmt}" "${compression_fmt}"; then
+        echo "ERROR: no tools was detected by the extensions. use --format if needed" >&2
+        exit 1
+    fi
+
+    local archiver_cmd=
+    local compression_cmd=
 }
 
 
