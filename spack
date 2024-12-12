@@ -237,6 +237,33 @@ function archiver_none_cmd {
     cp "${file}" "${tmp_compression_file}"
 }
 
+function get_compression_cmd {
+    local compression_fmt="$1"
+
+    case "${compression_fmt}" in
+        "gzip")
+            ensure_tool gzip
+            echo "gzip_cmd"
+        ;;
+        "none")
+            echo "compression_none_cmd"
+        ;;
+        *)
+            echo "ERROR: '${compression_fmt}' is an invalid compression format" >&2
+            exit 1
+        ;;
+    esac
+}
+
+function gzip_cmd {
+    gzip "${tmp_compression_file}" -S .gz --verbose
+    tmp_compression_file="${tmp_compression_file}.gz"
+}
+
+function compression_none_cmd {
+    : #well my bro, I guess I have nothing to do here ¯\_(o_o)_/¯
+}
+
 function spack_compress_info {
     local archiver_fmt="$1"
     local compression_fmt="$2"
@@ -299,12 +326,15 @@ function spack_compress {
     fi
 
     local archiver_cmd=$(get_archiver_cmd "${archiver_fmt}")
-    local compression_cmd=
+    local compression_cmd=$(get_compression_cmd "${compression_fmt}")
 
     tmp_compression_file="~tmp_compression"
 
     echo "--[[STEP 1: ${archiver_fmt}]]--"
     ${archiver_cmd} "${files[@]}"
+    echo "    completed..."
+    echo "--[[STEP 2: ${compression_fmt}]]--"
+    ${compression_cmd} "${files[@]}"
     echo "    completed..."
 
     mv "${tmp_compression_file}" "${SPACK_OUTPUT}"
