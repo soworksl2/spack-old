@@ -229,12 +229,12 @@ function get_archiver_cmd {
 function tar_cmd {
     local -a files=("$@")
 
-    tar -cf "${SPACK_OUTPUT}" "${files[@]}"
+    tar -cf "${tmp_compression_file}" "${files[@]}"
 }
 
 function archiver_none_cmd {
     local file="$1"
-    cp "${file}" "${SPACK_OUTPUT}"
+    cp "${file}" "${tmp_compression_file}"
 }
 
 function spack_compress_info {
@@ -301,9 +301,13 @@ function spack_compress {
     local archiver_cmd=$(get_archiver_cmd "${archiver_fmt}")
     local compression_cmd=
 
+    tmp_compression_file="~tmp_compression"
+
     echo "--[[STEP 1: ${archiver_fmt}]]--"
     ${archiver_cmd} "${files[@]}"
     echo "    completed..."
+
+    mv "${tmp_compression_file}" "${SPACK_OUTPUT}"
 }
 
 
