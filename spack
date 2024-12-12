@@ -245,6 +245,18 @@ function get_compression_cmd {
             ensure_tool gzip
             echo "gzip_cmd"
         ;;
+        "xz")
+            ensure_tool xz
+            echo "xz_cmd"
+        ;;
+        "bzip2")
+            ensure_tool bzip2
+            echo "bzip2_cmd"
+        ;;
+        "zstd")
+            ensure_tool zstd
+            echo "zstd_cmd"
+        ;;
         "none")
             echo "compression_none_cmd"
         ;;
@@ -258,6 +270,21 @@ function get_compression_cmd {
 function gzip_cmd {
     gzip "${tmp_compression_file}" -S .gz --verbose
     tmp_compression_file="${tmp_compression_file}.gz"
+}
+
+function xz_cmd {
+    xz -zS .xz "${tmp_compression_file}" --verbose
+    tmp_compression_file="${tmp_compression_file}.xz"
+}
+
+function bzip2_cmd {
+    bzip2 -z "${tmp_compression_file}" --verbose
+    tmp_compression_file="${tmp_compression_file}.bz2"
+}
+
+function zstd_cmd {
+    zstd -z "${tmp_compression_file}" --rm --verbose
+    tmp_compression_file="${tmp_compression_file}.zst"
 }
 
 function compression_none_cmd {
