@@ -186,6 +186,7 @@ get_compression_format() {
     for compression_tool_key in "${!COMPRESSION_TOOLS[@]}"; do
         local -a tool_data
         IFS=" " read -ra tool_data <<< "${COMPRESSION_TOOLS["${compression_tool_key}"]}"
+        tool_data=("${tool_data[@]:2}") #remove the compress and uncompress tools
         for ext_data in "${tool_data[@]}"; do
             local ext=
             local implicit_archiver=
