@@ -1,10 +1,59 @@
 #!/bin/bash
 
-function print_usage {
+# wrapper script to multiple archiver or compression tools
+#
+# Author: Soworksl
+# License: GNU General Public License v3.0 (GPLv3)
+# Repository: https://github.com/soworksl2/spack
+
+
+
+# Declaring all the tools and extensions supported by this script.
+# We have three arrays: ARCHIVER, COMPRESSION, and ENCRYPTION.
+#
+# STRUCTURE:
+# It is a 2-dimensional array. The first dimension is denoted by the string key, 
+# and the second by a string separated by spaces. 
+# For each tool:
+# - The first value is the tool to compress or create.
+# - The second value is the tool to decompress or extract.
+# - The remaining values are the supported extensions.
+#
+# EXTENSIONS:
+# Extensions have metadata indicating other implicit tools.
+# For example, `tgz` is for `gzip` but also for `tar`. 
+# Metadata goes before the extension, between `:`. For example: `:metadata:ext`.
+# Multiple metadata entries can be used, e.g., `:metadata1:metadata2:ext`. 
+# Each metadata entry overwrites the one before if necessary.
+# 
+# METADATA FORMAT:
+# Metadata consists of a letter indicating the group followed the key of the tool:
+# - `a` = ARCHIVER
+# - `c` = COMPRESSION
+# - `e` = ENCRYPTION
+# - `A` = All groups
+# 
+# Example: `:atar:tgz` means `tgz` uses the `tar` tool in the ARCHIVER group.
+# if `A` then the tool is used for all for example `:Arar:rar` will use rar
+# for archiving, compresing, and encription.
+declare -A ARCHIVER_TOOLS
+ARCHIVER_TOOLS[tar]="tar tar tar"
+
+declare -A COMPRESSION_TOOLS
+COMPRESSION_TOOLS[gzip]="gzip gzip gzip gz :atar:tgz"
+COMPRESSION_TOOLS[xz]="xz xz xz :atar:txz"
+COMPRESSION_TOOLS[bzip2]="bzip2 bzip2 bzip2 bzip bz2 :atar:tbz2 :atar:tbzip :atar:tbzip2"
+COMPRESSION_TOOLS[zstd]="zstd zstd zstd zst :atar:tzstd :atar:tzst"
+COMPRESSION_TOOLS[rar]="rar unrar :Arar:rar"
+COMPRESSION_TOOLS[zip]="zip unzip :Azip:zip"
+COMPRESSION_TOOLS[7z]="7z 7z :A7z:7z"
+
+
+print_usage() {
     echo "spack {OPERATION} [-o output_dest] [OPTIONS..]"
 }
 
-function print_help {
+print_help() {
     print_usage
     echo
     echo "GLOBAL OPTIONS:"
@@ -36,32 +85,42 @@ function print_help {
 }
 
 
-function ensure_tool {
+err() {
+    local -a messages=("$@")
+
+    local RED="\033[31m"
+    local RESET="\033[0m"
+    IFS=" "
+    echo -e "${RED}ERROR:${RESET} ${messages[*]}" >&2
+}
+
+ensure_tool() {
     local tool="$1"
 
     if ! command -v "${tool}" &> /dev/null; then
-        echo "ERROR: the tool (${tool}) is necessary" >&2
+        err "the tool (${tool}) is necessary"
         exit 1
     fi
 }
 
-function are_all_none {
+are_all_none() {
     local -a vars=("$@")
 
     for var in "${vars[@]}"; do
-        if ! test "${var}" = "none"; then
+        if ! [[ "${var}" == ""none ]]; then
             return 1
         fi
     done
     return 0
 }
 
-function process_special_data {
-    local special="$1"
+
+process_meta_data() {
+    local meta_data="$1"
     local -n psd__implicit_archiver_ref="$2"
 
-    local meta="${special:0:1}"
-    local key="${special:1}"
+    local meta="${meta_data:0:1}"
+    local key="${meta_data:1}"
 
     case "${meta}" in
         a)
@@ -71,78 +130,72 @@ function process_special_data {
             psd__implicit_archiver_ref="${key}"
             ;;
         *)
-            echo "ERROR: ':${meta}${key}:' is not a valid meta ext" >&2
+            err "':${meta}${key}:' is not a valid meta ext"
             exit 1
     esac
 }
 
-function extract_special_data_from_ext {
+extract_data_from_ext() {
     local -n esdfe__ext_ref="$1"
-    local -n esdfe__special_data_ref="$2"
+    local -n esdfe__meta_data_ref="$2"
     local ext_data="$3"
 
     ext_data="${ext_data:1}" #remove prefix colon (:)
     local -a components
     IFS=':' read -ra components <<< "${ext_data}"
-    esdfe__special_data_ref=("${components[@]::${#components[@]} - 1}")
+    esdfe__meta_data_ref=("${components[@]::${#components[@]} - 1}")
     esdfe__ext_ref="${components[-1]}"
 }
 
-function get_ext_data {
+extract_ext_data() {
     local ext_data="$1"
     local -n ext_ref="$2"
     local -n implicit_archiver_ref="$3"
 
-    if ! test "${ext_data:0:1}" = ":"; then
+    if ! [[ "${ext_data:0:1}" == ":" ]]; then
         ext_ref="${ext_data}"
         return
     fi
 
-    local -a special_data
-    extract_special_data_from_ext ext_ref special_data "${ext_data}"
-    for special in "${special_data[@]}"; do
-        process_special_data "${special}" implicit_archiver_ref
+    local -a data
+    extract_data_from_ext ext_ref data "${ext_data}"
+    for data_part in "${data[@]}"; do
+        process_meta_data "${data_part}" implicit_archiver_ref
     done
 }
 
-function get_tool_exts {
-    local tool_key="$1"
-    local -n tools_arr_ref="$2"
-    local -n tool_ext_ref="$3"
-
-    local -a exts
-    IFS=' ' read -ra exts <<< "${tools_arr_ref[${tool_key}]}"
-    tool_ext_ref=("${exts[@]:2}")
-}
-
-function get_archiver_format {
+get_archiver_format() {
     local part="$1"
     local -n gaf__archiver_fmt_ref="$2"
 
-    if test "${part}" = "tar"; then
+    if [[ "${part}" == "tar" ]]; then
         gaf__archiver_fmt_ref="tar"
     fi
 }
 
-function get_compression_format {
-    local part2="$1"
-    local part="$2"
+get_compression_format() {
+    local archiver_part="$1"
+    local compression_part="$2"
     local -n gcf__archiver_fmt_ref="$3"
     local -n gcf__compression_fmt_ref="$4"
 
+    if [[ -z "${compression_part}" ]]; then
+        return 1;
+    fi
+
     for compression_tool_key in "${!COMPRESSION_TOOLS[@]}"; do
-        local -a tool_exts
-        get_tool_exts "${compression_tool_key}" COMPRESSION_TOOLS tool_exts
-        for ext_data in "${tool_exts[@]}"; do
+        local -a tool_data
+        IFS=" " read -ra tool_data <<< "${COMPRESSION_TOOLS["${compression_tool_key}"]}"
+        for ext_data in "${tool_data[@]}"; do
             local ext=
             local implicit_archiver=
-            get_ext_data "${ext_data}" ext implicit_archiver
-            if test "${ext}" = "${part}"; then
+            extract_ext_data "${ext_data}" ext implicit_archiver
+            if [[ "${ext}" == "${compression_part}" ]]; then
                 gcf__compression_fmt_ref="${compression_tool_key}"
-                if test -n "${implicit_archiver}"; then
+                if [[ -n "${implicit_archiver}" ]]; then
                     gcf__archiver_fmt_ref="${implicit_archiver}"
                 else
-                    get_archiver_format "${part2}" gcf__archiver_fmt_ref
+                    get_archiver_format "${archiver_part}" gcf__archiver_fmt_ref
                 fi
                 return 0
             fi
@@ -152,13 +205,12 @@ function get_compression_format {
     return 1
 }
 
-function get_archiver_part {
+get_archiver_part() {
     local part="$1"
     local -n gap__archiver_fmt_ref="$2"
 
     for archiver_tool_key in "${!ARCHIVER_TOOLS[@]}"; do
         local -a tool_exts
-        get_tool_exts "${archiver_tool_key}" ARCHIVER_TOOLS tool_exts
         for ext in "${tool_exts}"; do
             if test "${part}" = "${ext}"; then
                 gap__archiver_fmt_ref="${archiver_tool_key}"
@@ -169,46 +221,31 @@ function get_archiver_part {
     return 1
 }
 
-function get_formats_individually {
-    local format="$1"
+get_formats_individually() {
+    local format_filename="$1"
     local -n archiver_fmt_ref="$2"
     local -n compression_fmt_ref="$3"
+
     #if nothing is encounter set all as none by default
     archiver_fmt_ref="none"
     compression_fmt_ref="none"
 
     local -a fmt_parts
+    IFS='.' read -ra fmt_parts <<< "${format_filename}"
+    fmt_parts=("${fmt_parts[@]:1}") #remove filename to only get extensions
 
-    IFS='.' read -ra fmt_parts <<< "${format}"
-    for (( i=${#fmt_parts[@]}-1 ; i>=1 ; i-- )) ; do
-        local ext="${fmt_parts[i]}"
-        local ext2=
-        local ext3=
+    local ext3="${fmt_parts[-1]}"
+    local ext2=
+    local ext1=
+    [[ "${#fmt_parts[@]}" -gt 1 ]] && ext2="${fmt_parts[-2]}" #try set ext2
+    [[ "${#fmt_parts[@]}" -gt 2 ]] && ext1="${fmt_parts[-3]}" #try set ext1
 
-        if test ${i} -gt 1; then
-            ext2="${fmt_parts[i-1]}"
-        fi
-        if test ${i} -gt 2; then
-            ext3="${fmt_parts[i-2]}"
-        fi
-
-        if get_compression_format "${ext2}" "${ext}" archiver_fmt_ref compression_fmt_ref; then
-            return
-        else
-            get_archiver_part "${ext}" archiver_fmt_ref
-            return
-        fi
-        #if is_compression_part "${ext}"; then
-        #    get_compression_format "${ext2}" "${ext}" archiver_fmt_ref compression_fmt_ref
-        #    return
-        #elif is_archiver_part "${ext}"; then
-        #    get_archiver_format "${ext}" archiver_fmt_ref
-        #    return
-        #fi
-    done
+    get_compression_format "${ext2}" "${ext3}" \
+                            archiver_fmt_ref compression_fmt_ref || \
+    get_archiver_format "${ext3}" archiver_fmt_ref
 }
 
-function get_archiver_cmd {
+get_archiver_cmd() {
     local archiver_fmt="$1"
 
     case "${archiver_fmt}" in
@@ -226,18 +263,18 @@ function get_archiver_cmd {
     esac
 }
 
-function tar_cmd {
+tar_cmd() {
     local -a files=("$@")
 
     tar -cf "${tmp_compression_file}" "${files[@]}"
 }
 
-function archiver_none_cmd {
+archiver_none_cmd() {
     local file="$1"
     cp "${file}" "${tmp_compression_file}"
 }
 
-function get_compression_cmd {
+get_compression_cmd() {
     local compression_fmt="$1"
 
     case "${compression_fmt}" in
@@ -267,37 +304,51 @@ function get_compression_cmd {
     esac
 }
 
-function gzip_cmd {
+gzip_cmd() {
     gzip "${tmp_compression_file}" -S .gz --verbose
     tmp_compression_file="${tmp_compression_file}.gz"
 }
 
-function xz_cmd {
+xz_cmd() {
     xz -zS .xz "${tmp_compression_file}" --verbose
     tmp_compression_file="${tmp_compression_file}.xz"
 }
 
-function bzip2_cmd {
+bzip2_cmd() {
     bzip2 -z "${tmp_compression_file}" --verbose
     tmp_compression_file="${tmp_compression_file}.bz2"
 }
 
-function zstd_cmd {
+zstd_cmd() {
     zstd -z "${tmp_compression_file}" --rm --verbose
     tmp_compression_file="${tmp_compression_file}.zst"
 }
 
-function compression_none_cmd {
+compression_none_cmd() {
     : #well my bro, I guess I have nothing to do here ¯\_(o_o)_/¯
 }
 
-function spack_compress_info {
+
+detect_format_filename() {
+    local format="$1"
+    local explicit_format_filename="$2"
+
+    if [[ "${format}" == "auto" ]]; then
+        echo "${explicit_format_filename}"
+    else
+        #TODO: fix trailing dot in some scenarios. example $format=.tgz
+        echo "dumb_file.${format}"
+    fi
+}
+
+compress_print_info() {
     local archiver_fmt="$1"
     local compression_fmt="$2"
 
     shift 2
     local -a files=("$@")
 
+    echo "--informative"
     echo "operation: compression (-c)"
     echo "output file: ${SPACK_OUTPUT}"
     echo "archiver_fmt: ${archiver_fmt}"
@@ -307,47 +358,54 @@ function spack_compress_info {
     for file in "${files[@]}"; do
         echo "    ${file}"
     done
+    echo "--end informative"
 }
 
-function spack_compress {
+spack_compress() {
     local output="$1"
-    local format="$2"
+    local format_filename="$2"
     shift 2
     local files=("$@")
+
+
+    if [[ "${output}" == "auto" ]]; then
+        err "you need to specify the output for the compression file"
+        exit 1
+    fi
+
+    format_filename="$(detect_format_filename "${format_filename}" "${output}")"
     
     local archiver_fmt
     local compression_fmt
 
-    get_formats_individually ${format} archiver_fmt compression_fmt
+    get_formats_individually ${format_filename} archiver_fmt compression_fmt
 
-    if test "${SPACK_INFORMATIVE}" = true; then
-        echo "--informative"
-        spack_compress_info "${archiver_fmt}" "${compression_fmt}" "${files[@]}"
-        echo "--end informative"
+    if [[ "${SPACK_INFORMATIVE}" == "true" ]]; then
+        compress_print_info "${archiver_fmt}" "${compression_fmt}" "${files[@]}"
     fi
 
-    if test "${SPACK_DRY}" = true; then
+    if [[ "${SPACK_DRY}" == "true" ]]; then
         return
     fi
 
     if are_all_none "${archiver_fmt}" "${compression_fmt}"; then
-        echo "ERROR: no tools was detected by the extensions. use --format if needed" >&2
+        err "no tools was detected by the extensions. use --format if needed"
         exit 1
     fi
 
-    if test "${#files[@]}" -eq "0"; then
-        echo "ERROR: no files was specified to compress" >&2
+    if [[ "${#files[@]}" -eq "0" ]]; then
+        err "no files was specified to compress"
         exit 1
     fi
 
-    if test "${archiver_fmt}" = "none"; then
-        if test "${#files[@]}" -gt 1; then
-            echo "ERROR: Multiple files cannot be processed without an archiving tool." >&2
+    if [[ "${archiver_fmt}" = "none" ]]; then
+        if [[ "${#files[@]}" -gt 1 ]]; then
+            err "Multiple files cannot be processed without an archiving tool."
             exit 1
         fi
 
-        if test -d "${files[0]}"; then
-            echo "ERROR: '${files[0]}' is a directory and cannot be processed without an archiving tool" >&2
+        if [[ -d "${files[0]}" ]]; then
+            err "'${files[0]}' is a directory and cannot be processed without an archiving tool"
             exit 1
         fi
     fi
@@ -367,26 +425,17 @@ function spack_compress {
     mv "${tmp_compression_file}" "${SPACK_OUTPUT}"
 }
 
-
-declare -A ARCHIVER_TOOLS
-ARCHIVER_TOOLS[tar]="tar tar tar"
-
-declare -A COMPRESSION_TOOLS
-COMPRESSION_TOOLS[gzip]="gzip gzip gzip gz :atar:tgz"
-COMPRESSION_TOOLS[xz]="xz xz xz :atar:txz"
-COMPRESSION_TOOLS[bzip2]="bzip2 bzip2 bzip2 bzip bz2 :atar:tbz2 :atar:tbzip :atar:tbzip2"
-COMPRESSION_TOOLS[zstd]="zstd zstd zstd zst :atar:tzstd :atar:tzst"
-COMPRESSION_TOOLS[rar]="rar unrar :Arar:rar"
-COMPRESSION_TOOLS[zip]="zip unzip :Azip:zip"
-COMPRESSION_TOOLS[7z]="7z 7z :A7z:7z"
-
+#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+# parsing arguments
 #-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-
 plain_args=("$@")
-TEMP=$(getopt -o "hco:" -l "help,version,compress,format:,output:,dry,informative" -- "$@")
+TEMP=$(getopt \
+        -o "hco:" \
+        -l "help,version,compress,format:,output:,dry,informative" \
+        -- "$@")
 
-if test "$?" -ne "0"; then
+if [[ "$?" -ne "0" ]]; then
     echo "error parsing arguments" >&2
     exit 1
 fi
@@ -394,10 +443,6 @@ fi
 eval set -- "$TEMP"
 unset TEMP
 
-
-#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-# parsing arguments
-#-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 SPACK_REPOSITORY="https://github.com/soworksl2/spack"
 SPACK_VERSION=0.0.1
@@ -465,26 +510,15 @@ done
 # runtime
 #-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-if test -z "$SPACK_OPERATION"; then
-    echo "ERROR: no operation specified" >&2
+if [[ -z "${SPACK_OPERATION}" ]]; then
+    err "no operation specified"
     exit 1
 fi
 
 case "${SPACK_OPERATION}" in
-    "c")
-        if test "${SPACK_OUTPUT}" = "auto"; then
-            echo "ERROR: you need to specify the output for the compression file" >&2 
-            exit 1
-        fi
-        if test "${SPACK_FORMAT}" = "auto"; then
-            SPACK_FORMAT="${SPACK_OUTPUT}"
-        else
-            SPACK_FORMAT="dumb_file.${SPACK_FORMAT}"
-        fi
-        spack_compress "${SPACK_OUTPUT}" "${SPACK_FORMAT}" "$@"
-    ;;
+    "c") spack_compress "${SPACK_OUTPUT}" "${SPACK_FORMAT}" "$@" ;;
     *)
-        echo "ERROR: operation is invalid" >&2
+        err "operation '${SPACK_OPERATION}' is invalid"
         exit 1
-    ;;
+        ;;
 esac
