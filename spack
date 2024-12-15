@@ -252,11 +252,14 @@ get_archiver_cmd() {
 
     case "${archiver_fmt}" in
         "tar")
-            ensure_tool tar || echo "no_tool" && return
+            ensure_tool tar || (echo "no_tool" && return)
             echo "tar_cmd"
         ;;
         "none")
-            echo "archiver_none_cmd"
+            echo "archiver_let_pass_cmd"
+        ;;
+        "zip")
+            echo "archiver_do_nothing_cmd"
         ;;
         *)
             echo "err"
@@ -270,9 +273,13 @@ tar_cmd() {
     tar -cf "${tmp_compression_file}" "${files[@]}"
 }
 
-archiver_none_cmd() {
+archiver_let_pass_cmd() {
     local file="$1"
     cp "${file}" "${tmp_compression_file}"
+}
+
+archiver_do_nothing_cmd() {
+    : #do nothing ¯\_(o_o)_/¯
 }
 
 get_compression_cmd() {
@@ -280,21 +287,25 @@ get_compression_cmd() {
 
     case "${compression_fmt}" in
         "gzip")
-            ensure_tool gzip || echo "no_tool" && return
+            ensure_tool gzip || (echo "no_tool" && return)
             echo "gzip_cmd"
         ;;
         "xz")
-            ensure_tool xz || echo "no_tool" && return
+            ensure_tool xz || (echo "no_tool" && return)
             echo "xz_cmd"
         ;;
         "bzip2")
-            ensure_tool bzip2 || echo "no_tool" && return
+            ensure_tool bzip2 || (echo "no_tool" && return)
             echo "bzip2_cmd"
         ;;
         "zstd")
-            ensure_tool zstd || echo "no_tool" && return
+            ensure_tool zstd || (echo "no_tool" && return)
             echo "zstd_cmd"
         ;;
+        "zip")
+            ensure_tool zip || (echo "no_tool" && return)
+            echo "zip_cmd"
+            ;;
         "none")
             echo "compression_none_cmd"
         ;;
@@ -322,6 +333,12 @@ bzip2_cmd() {
 zstd_cmd() {
     zstd -z "${tmp_compression_file}" --rm --verbose
     tmp_compression_file="${tmp_compression_file}.zst"
+}
+
+zip_cmd() {
+    local -a files=("$@")
+    zip -r "${tmp_compression_file}" "${files[@]}" --verbose
+    tmp_compression_file="${tmp_compression_file}.zip"
 }
 
 compression_none_cmd() {
