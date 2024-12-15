@@ -258,8 +258,7 @@ get_archiver_cmd() {
             echo "archiver_none_cmd"
         ;;
         *)
-            echo "ERROR: '${archiver_fmt}' is an invalid archiver format" >&2
-            exit 1
+            echo "err"
         ;;
     esac
 }
@@ -299,8 +298,7 @@ get_compression_cmd() {
             echo "compression_none_cmd"
         ;;
         *)
-            echo "ERROR: '${compression_fmt}' is an invalid compression format" >&2
-            exit 1
+            echo "err"
         ;;
     esac
 }
@@ -413,6 +411,16 @@ spack_compress() {
 
     local archiver_cmd=$(get_archiver_cmd "${archiver_fmt}")
     local compression_cmd=$(get_compression_cmd "${compression_fmt}")
+
+    if [[ "${archiver_cmd}" == "err" ]]; then
+        err "${archiver_fmt} is an invalid format or not supported"
+        exit 1
+    fi
+
+    if [[ "${compression_cmd}" == "err" ]]; then
+        err "${compression_fmt} is an invalid format or not supported"
+        exit 1
+    fi
 
     tmp_compression_file="~tmp_compression"
 
