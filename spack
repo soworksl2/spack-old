@@ -99,8 +99,9 @@ ensure_tool() {
 
     if ! command -v "${tool}" &> /dev/null; then
         err "the tool (${tool}) is necessary"
-        exit 1
+        return 1
     fi
+    return 0
 }
 
 are_all_none() {
@@ -251,7 +252,7 @@ get_archiver_cmd() {
 
     case "${archiver_fmt}" in
         "tar")
-            ensure_tool tar
+            ensure_tool tar || echo "no_tool" && return
             echo "tar_cmd"
         ;;
         "none")
@@ -279,19 +280,19 @@ get_compression_cmd() {
 
     case "${compression_fmt}" in
         "gzip")
-            ensure_tool gzip
+            ensure_tool gzip || echo "no_tool" && return
             echo "gzip_cmd"
         ;;
         "xz")
-            ensure_tool xz
+            ensure_tool xz || echo "no_tool" && return
             echo "xz_cmd"
         ;;
         "bzip2")
-            ensure_tool bzip2
+            ensure_tool bzip2 || echo "no_tool" && return
             echo "bzip2_cmd"
         ;;
         "zstd")
-            ensure_tool zstd
+            ensure_tool zstd || echo "no_tool" && return
             echo "zstd_cmd"
         ;;
         "none")
@@ -412,6 +413,7 @@ spack_compress() {
     local archiver_cmd=$(get_archiver_cmd "${archiver_fmt}")
     local compression_cmd=$(get_compression_cmd "${compression_fmt}")
 
+    #invalids formats
     if [[ "${archiver_cmd}" == "err" ]]; then
         err "${archiver_fmt} is an invalid format or not supported"
         exit 1
@@ -419,6 +421,11 @@ spack_compress() {
 
     if [[ "${compression_cmd}" == "err" ]]; then
         err "${compression_fmt} is an invalid format or not supported"
+        exit 1
+    fi
+
+    #no tools found
+    if [[ "${archiver_cmd}" == "no_tool" ]] || [[ "${compression_cmd}" == "no_tool" ]]; then
         exit 1
     fi
 
